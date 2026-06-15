@@ -1,0 +1,149 @@
+{
+	"partitions" : [
+		{
+			"name" : "Top",
+			"pins" : [
+				{
+					"name" : "ena",
+					"strict" : false
+				},
+				{
+					"name" : "in1",
+					"strict" : false
+				},
+				{
+					"name" : "in2",
+					"strict" : false
+				},
+				{
+					"name" : "enb",
+					"strict" : false
+				},
+				{
+					"name" : "in3",
+					"strict" : false
+				},
+				{
+					"name" : "in4",
+					"strict" : false
+				},
+				{
+					"name" : "move_state[0]",
+					"strict" : false
+				},
+				{
+					"name" : "move_state[1]",
+					"strict" : false
+				},
+				{
+					"name" : "move_state[2]",
+					"strict" : false
+				},
+				{
+					"name" : "t_right",
+					"strict" : false
+				},
+				{
+					"name" : "t_left",
+					"strict" : false
+				},
+				{
+					"name" : "t_mid",
+					"strict" : false
+				},
+				{
+					"name" : "op_mid",
+					"strict" : false
+				},
+				{
+					"name" : "left_maze",
+					"strict" : false
+				},
+				{
+					"name" : "right_maze",
+					"strict" : false
+				},
+				{
+					"name" : "mid_maze",
+					"strict" : false
+				},
+				{
+					"name" : "uart_txx1",
+					"strict" : false
+				},
+				{
+					"name" : "servo_pulse",
+					"strict" : false
+				},
+				{
+					"name" : "ack",
+					"strict" : false
+				},
+				{
+					"name" : "rsts",
+					"strict" : false
+				},
+				{
+					"name" : "sensor",
+					"strict" : false
+				},
+				{
+					"name" : "ir_sensor",
+					"strict" : false
+				},
+				{
+					"name" : "clk50",
+					"strict" : false
+				},
+				{
+					"name" : "e_mid",
+					"strict" : false
+				},
+				{
+					"name" : "m1_a",
+					"strict" : false
+				},
+				{
+					"name" : "m2_a",
+					"strict" : false
+				},
+				{
+					"name" : "e_left",
+					"strict" : false
+				},
+				{
+					"name" : "e_right",
+					"strict" : false
+				},
+				{
+					"name" : "ir_right",
+					"strict" : false
+				},
+				{
+					"name" : "ir_left",
+					"strict" : false
+				},
+				{
+					"name" : "dout",
+					"strict" : false
+				},
+				{
+					"name" : "altera_reserved_tms",
+					"strict" : false
+				},
+				{
+					"name" : "altera_reserved_tck",
+					"strict" : false
+				},
+				{
+					"name" : "altera_reserved_tdi",
+					"strict" : false
+				},
+				{
+					"name" : "altera_reserved_tdo",
+					"strict" : false
+				}
+			]
+		}
+	]
+}

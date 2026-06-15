@@ -1,0 +1,63 @@
+# Quartus generated databases
+db/
+incremental_db/
+
+# Compilation output
+output_files/
+
+# Simulation output
+simulation/
+sim/
+questa/
+
+# Programming files (optional)
+*.sof
+*.pof
+*.jic
+*.rbf
+
+# Reports and logs
+*.rpt
+*.summary
+*.smsg
+*.log
+
+# Temporary files
+*.bak
+*.tmp
+*.qws
+*.ddb
+
+# SignalTap
+*.stp.bak
+
+# Generated netlists
+*.vo
+*.vho
+*.edf
+*.eda.rpt
+
+# Timing analysis
+*.sta.rpt
+
+# ModelSim / QuestaSim
+transcript
+work/
+vsim.wlf
+modelsim.ini
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# VS Code
+.vscode/
+
+# Vivado (if accidentally present)
+.cache/
+.hw/
+.ip_user_files/
+
+# Python
+__pycache__/
+*.pyc

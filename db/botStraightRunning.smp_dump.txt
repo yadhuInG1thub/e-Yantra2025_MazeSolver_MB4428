@@ -1,0 +1,32 @@
+
+State Machine - |botrun|state
+Name state.q6 state.q5 state.q4 state.q3 state.q2 state.q1 
+state.q1 0 0 0 0 0 0 
+state.q2 0 0 0 0 1 1 
+state.q3 0 0 0 1 0 1 
+state.q4 0 0 1 0 0 1 
+state.q5 0 1 0 0 0 1 
+state.q6 1 0 0 0 0 1 
+
+State Machine - |botrun|ultrasonic:md|state
+Name state.st_1us state.st_ech state.st_trig 
+state.st_1us 0 0 0 
+state.st_trig 1 0 1 
+state.st_ech 1 1 0 
+
+State Machine - |botrun|ultrasonic:rght|state
+Name state.st_1us state.st_ech state.st_trig 
+state.st_1us 0 0 0 
+state.st_trig 1 0 1 
+state.st_ech 1 1 0 
+
+State Machine - |botrun|ultrasonic:let|state
+Name state.st_1us state.st_ech state.st_trig 
+state.st_1us 0 0 0 
+state.st_trig 1 0 1 
+state.st_ech 1 1 0 
+
+State Machine - |botrun|mpimsend:work|servo_runn:run|turn
+Name turn.01 
+turn.00 0 
+turn.01 1 

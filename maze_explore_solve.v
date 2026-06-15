@@ -1,0 +1,515 @@
+/*
+# Team ID:          eYRC#4428
+# Theme:            Mazesolver Bot
+# Author List:      Agathiyan , Sanjay ,Israel Stephen , Yadhu Nandan
+# Filename:         t2c_maze_explorer.v
+# File Description: This file contains verilog code that , can take three digital signals as input and gives a 3'bit output ,
+                    which helps a bot to solve theat particular maze and explore all the dead ends possibe in that maze.
+# Global variables: none
+*/
+
+// Task 2C - MazeSolver Bot
+
+
+module maze_explore_solve (
+    input clk,
+    input rst_n,
+	 input execute,
+	 output reg signed [7:0] position,
+    input left, mid, right, // 0 - no wall, 1 - wall
+    output reg [2:0] move
+   
+    
+);
+
+/*
+| cmd | move  | meaning   |
+|-----|-------|-----------|
+| 000 | 0     | STOP      |
+| 001 | 1     | FORWARD   |
+| 010 | 2     | LEFT      |
+| 011 | 3     | RIGHT     | 
+| 100 | 4     | U_TURN    |
+
+START POS   : 4,0
+EXIT POS    : 4,8
+DEADENDS    : 7
+
+*/
+//////////////////DO NOT MAKE ANY CHANGES ABOVE THIS LINE //////////////////
+reg signed [2:0] visited_block_data[0:80];          //0 -bit mention is that block is visited or not || 1, 2 bit tells the direction from which bot moved to next position
+//reg signed [7:0] position;                          //current position of the bot
+reg reached_final;                                  //Have the bot reached the final atleast once if yesy it becomes 1 otherwise stays at 0
+reg signed [7:0] next_position_inback_tracking;     //Next position to be reached while going back to other junction
+reg signed [7:0]pos_update_values[0:3];             //Stack that have position updating value
+reg [1:0] nxt_direction;                            //Next direction the bot in pointed
+reg [1:0]delay_fo_rst;                              //Delay that stops the bot movement until rst_n is high
+reg delay_for_movement;                             //Delay that stops the bot movement for 2 clock pulses until the signal are recieved from tb after rst_n became high||Note that we have used for other purpose in code to reduce the usage of the registers
+/*
+0:7 - 8 Bits to store position
+8:9 - To tell how many paths from junction is unvisited||If its zero its not a junction anymore 
+*/
+reg [9:0] junction_mem[1:7];                        //Junction memeory contains all junction position , deletes if all  possible paths from the junctions are visited 
+// first 8 bits for storing position and next 2 two bits to tell how many paths still a junction have unvisited
+integer var1;                                       //Variable we have used for loop conditions
+reg [3:0]junction_mem_pointer;                      //Junction memory pointer points to the next memory location to which next junction to be stored
+integer aim_pos_backTracking;                       //Points to the particular junction location that bot needs to be reach
+integer can_exit_maze;                              //Can bot exit out of the maze
+integer again_at_starting_position;                 //If bot moved back to starting position - 76
+reg [7:0]position_that_preceed_in_backTracking;     //Position that is to be moved from current poosition in order to each the aiming positon 
+reg fsm_state;
+reg [1:0] delay_two;
+
+localparam idle = 1'b0;
+localparam solve = 1'b1;
+
+//Initialised all parameters
+initial begin
+	fsm_state = 0;
+   for (var1 = 0; var1 <= 80; var1 = var1 + 1) begin
+       visited_block_data[var1] = 3'd0;
+   end
+   for (var1 = 1; var1 <= 7; var1 = var1 + 1) begin
+       junction_mem[var1] = 12'd0;
+   end
+   /*To our logic 
+   0 - North
+   1 - West
+   2 - South
+   3 - East
+   */
+   pos_update_values[0]=-9;         //north
+   pos_update_values[1]=-1;         //west
+   pos_update_values[2]=9;          //south
+   pos_update_values[3]=1;          //east
+	position = 8'd76;               //Initialised to starting position 76  
+    //From here all paras are initialised to zero
+   nxt_direction = 2'b00;
+	delay_fo_rst=2'b0;
+   delay_for_movement=1'b1;
+   var1=1;
+   junction_mem_pointer = 4'd1;
+   aim_pos_backTracking = 0;
+	can_exit_maze = 0;
+   again_at_starting_position =1;
+	next_position_inback_tracking=7'd0;
+   reached_final = 0;   
+   position_that_preceed_in_backTracking = 8'd0;
+	delay_two = 0;
+end
+//Midsider task moves bot in mid and updates parameter accordingly
+task midsider;
+input signed [7:0]poup;
+   inout v_data;
+   inout [1:0]v_dir;
+   inout [7:0]po;
+   inout [1:0]dir;
+   inout reg [2:0]mov;
+   begin
+      mov = 3'b001;
+      v_data = 1'b1;
+      po = po+poup;
+      dir = dir; 
+       v_dir= dir;
+   end 
+endtask
+
+//leftsider task moves bot in left and updates parameter accordingly
+task leftsider;
+input signed [7:0]poup;
+   inout v_data;
+   inout [1:0]v_dir;
+   inout [7:0]po;
+   inout [1:0]dir;
+   inout reg [2:0]mov;
+   begin
+      mov = 3'b010;
+      v_data = 1'b1;
+      po = po+poup;
+      dir = (dir+2'b01)&3'b011; 
+      v_dir= dir;
+   end 
+endtask
+
+//Rightsider task moves bot in right and updates parameter accordingly
+task rightsider;
+input signed [7:0]poup;
+   inout v_data;
+   inout [1:0]v_dir;
+   inout [7:0]po;
+   inout [1:0]dir;
+   inout reg [2:0]mov;
+   begin
+      mov = 3'b011;
+      v_data = 1'b1;
+      po = po+poup;
+      dir = (dir+2'b11)&3'b011; 
+      v_dir= dir;
+   end 
+endtask
+/*
+    Procedure : 
+ => Firts part of the code contains the delay part for rst_n signal and input signals
+ => In second part the algorithm checks if the current position is a junction or not if its a junction then it will store that junction in a stack memory
+     - Again a loop checks all the stored position of the junction memory and their last two bits which states whether all the possible position are visited from the junction or not
+     - A flag is will be set if the final position is reached atleast once
+     - Then a overflow condition for the junction memory pointer is added ,which changes the pointer value to the position that is empty
+     - IF last two bits are zero then all possible path from a junction is vsited
+     - If yes then that position is removed from the stack
+     - Then again a loop checks all positions stored 
+            *If total junction memrory is empty and position  of the bot is 4 then go out of the maze
+            *If not the do not go out of the maze
+     - Another condition checks if the bot reached the starting position or not and sets a flag
+ => Main if condition , if all three sides are wall then it takes u-turn irrespective of any other condtions
+ => Else now our algorithm can move bot in two mode
+    *Normal exploration mode
+    *Specific position tracking mode
+ => In normal exploratoin mode
+      - The movement of the bot is prioritized based on direction instead of following specific wall side for all direction, this helps in depth exploration for the bot
+      - For each movment a flag set that if a position is visted or not in visited block data memory
+      - For each movement the last two bytes of the visited block data memory will store the direction to which bot moved
+      - In this exploration the bot will be allowed to visit a position if the position is not visited alraedy
+      - If not , If all the position neighbouring to the bot is visted then the bot will be pointed to the recently added junction position
+      - If that junction memory is empty and the bot have reached the final postion already then the bot is pointed to ending position - 4
+ => In Specific positoin tracking mode
+      - A loop starts to track positions in reverse from pointed poistion to position just after the current poistion that bot need to move in order to get the pointed position
+      - This reverse tracking is done using the stored direction flags of each position
+      - After finding the block just after current position the two case statements will navigate the bot to that position irrespectiev of its orientation
+      - If finnaly the pointed position is reached then it will make bot to move in normal mode.
+ => If can go out flag is been set then based on its direction the bot will move out. 
+*/
+always @(posedge clk) begin //**********************************
+	case (fsm_state)
+		idle:begin
+			delay_two <= 0;
+			if(execute) begin
+				fsm_state <= solve;
+			end
+			else begin
+				fsm_state <= idle;
+			end
+		end
+		solve:begin
+			delay_two <= delay_two + 1;
+			if (delay_two == 2'd2) begin
+				fsm_state <= idle;
+			end else if (delay_two<2'd2)begin
+				fsm_state <= solve;
+			end
+   //Delay that stops the bot movement until rst_n is high 
+   delay_fo_rst = delay_fo_rst+rst_n;
+    if (rst_n == 1'b1 && delay_fo_rst==2'b10 ) begin
+
+      //Delay that stops the bot movement for 2 clock pulses until the signal are recieved from tb after rst_n became high  
+      delay_for_movement = delay_for_movement + 1'b1;
+        if (delay_for_movement == 1'b1) begin
+                
+                //To check if a position is a junction
+                //Here delay_fo_rst is used check if a position is junction or not
+                //If adding all diection gives a value less than 2 the its definitely a junction
+                delay_fo_rst = mid + left + right;
+
+                 if(aim_pos_backTracking ==0)begin
+                    if(delay_fo_rst<2'b10)begin
+                        if(visited_block_data[position][0]==0)begin
+                            //Adding junction to the memory and number of paths to be visited
+                            junction_mem[junction_mem_pointer][7:0]= position;
+                            junction_mem[junction_mem_pointer][9:8] = (2'b10 - delay_fo_rst)&2'b11;
+                            if(position == 8'd4)begin
+                                //If final position 4 is reached then the flag reached_final is set to 1 
+                                //Number of paths from junction is set 1 less than normal junctions
+                                reached_final = 1'b1;
+                               junction_mem[junction_mem_pointer][9:8] = (2'b01 - delay_fo_rst)&2'b11; 
+                            end
+                            //Pointer is incremented 
+                            junction_mem_pointer = junction_mem_pointer+1'd1;
+                        end
+                        end 
+                        //This loop traverse along full junction memeory and sees if memory if fully cleared                     
+                            //This loop deletes the junctions that have all paths visited||That means 8:9 must be zero
+                        if(visited_block_data[position][0]!=0)begin
+                            for (var1 = 7; var1 > 0; var1 = var1 - 1) begin
+                                if(position == junction_mem[var1][6:0])begin
+                                    if(junction_mem[var1][9:8] > 2'd0 )begin
+                                        junction_mem[var1][9:8] = junction_mem[var1][9:8] - 2'b01;
+                                    end
+                                     if(junction_mem[var1][9:8] ==2'd0 )begin
+                                        junction_mem[var1] = 10'd0;
+                                    end
+                                end
+                            end
+                        end
+                             for (var1 = 7; var1 > 0; var1 = var1 - 1) begin
+                                if (junction_mem[var1] != 10'd0 && aim_pos_backTracking <1  )begin                                 
+                                    aim_pos_backTracking = var1;
+                                    junction_mem_pointer = aim_pos_backTracking +1;                                                                                                                 
+                                end
+                                else move = 3'b00;
+                            end 
+                            //If memory if fully cleared and reached final position then bot can exit the maze succesfully          
+                            if (aim_pos_backTracking == 0 && position == 7'd4)begin
+                                can_exit_maze =1;
+                            end
+                            else begin
+                                //else it should not exit the maze
+                                can_exit_maze =0;
+                                aim_pos_backTracking = 0 ;
+                            end          
+            //end
+                end
+                //To check if it reached stating position again , if it reached that position thsn following condition will stop the bot from moving out
+                if (position == 8'd76 )begin
+                    again_at_starting_position =0;
+                end
+                else begin
+                    again_at_starting_position =1;
+                end                
+                    //
+                    //starts here
+                    //
+                    
+                    //Irespective of parameters like wheteher its moving back or any other parameters if its a dead end it takes u turn
+                    if (mid == 1'b1 &&left == 1'b1 && right == 1'b1)  begin 
+                                move = 3'b100;
+                                visited_block_data[position][2:0] = visited_block_data[position][2:0]+3'd01;
+                                position = position+pos_update_values[nxt_direction+2'b10];
+                                nxt_direction = nxt_direction+2'b10;
+                    end    
+                    else begin
+                            //If its not moving back to any position aimed then based on priority move the bot to next position
+                            if(aim_pos_backTracking == 0 && can_exit_maze ==0) begin
+                                var1=0;
+                                /*
+                                Direction based priority for bot movement
+                                --This helps bot to explore first rather than moving along the maze
+                                --This idea is used instead for side based priority(eg- wall follower - left wall folllower)
+                                --As the problem statement stated the exiting position in faced in north from starting position 
+                                --Then moving up to north from current direction will be the bots least priority
+                                -- Moving down south is highest priority
+                                1) North -- 00 
+                                  Left  (or else) Right (or else) Mid 
+                                  West  (or else) East  (or else) north 
+                                2) West -- 01
+                                  Left  (or else) Mid   (or else) Right
+                                  South (or else) Wesr  (or else) North
+                                3) South -- 10 
+                                  Mid   (or else) Left  (or else) Right
+                                  South (or else) West  (or else) East
+                                4) East -- 11
+                                  Right (or else) Mid   (or else) Left
+                                  South (or else) East  (or else) North
+                                */
+                                case(nxt_direction)
+										  
+                                2'b00:begin
+                                    if (left == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b01)&3'b011]][0] < 1'b1 ) begin
+                                        leftsider(pos_update_values[(nxt_direction+2'b01)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end             
+                                    else if (right == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b11)&3'b011]][0] < 1'b1 )begin
+                                        rightsider(pos_update_values[(nxt_direction+2'b11)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end
+                                    else if (mid==1'd0 && visited_block_data[position+pos_update_values[nxt_direction]] [0]<1'b1)begin
+                                        midsider(pos_update_values[nxt_direction],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                    
+                                    end
+                                    else  begin
+                                            var1=1;
+                                            visited_block_data[position][0] = 1'b1;
+                                        end
+                                end
+                                2'b01:begin
+                                    if (left == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b01)&3'b011]][0] < 1'b1 && again_at_starting_position ) begin
+                                        leftsider(pos_update_values[(nxt_direction+2'b01)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end 
+                                    else if (mid==1'd0 && visited_block_data[position+pos_update_values[nxt_direction]] [0]<1'b1)begin
+                                        midsider(pos_update_values[nxt_direction],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                    
+                                    end
+                                    else if (right == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b11)&3'b011]][0] < 1'b1 )begin
+                                        rightsider(pos_update_values[(nxt_direction+2'b11)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end
+                                    else  begin
+                                            var1=1;
+                                            visited_block_data[position][0] = 1'b1;
+                                        end
+                                end
+                                2'b10:begin
+                                    if (mid==1'd0 && visited_block_data[position+pos_update_values[nxt_direction]] [0]<1'b1&& again_at_starting_position)begin
+                                        midsider(pos_update_values[nxt_direction],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                
+                                    end
+                                    else if (left == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b01)&3'b011]][0] < 1'b1 ) begin
+                                        leftsider(pos_update_values[(nxt_direction+2'b01)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                    
+                                    end
+                                    else if (right == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b11)&3'b011]][0] < 1'b1 )begin
+                                        rightsider(pos_update_values[(nxt_direction+2'b11)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end
+                                    else  begin
+                                            var1=1;
+                                            visited_block_data[position][0] = 1'b1;
+                                        end
+                                end
+                                2'b11:begin
+                                    if (right == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b11)&3'b011]][0] < 1'b1 && again_at_starting_position)begin
+                                        rightsider(pos_update_values[(nxt_direction+2'b11)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                        
+                                    end
+                                    else if (mid==1'd0 && visited_block_data[position+pos_update_values[nxt_direction]] [0]<1'b1)begin
+                                        midsider(pos_update_values[nxt_direction],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end
+                                    else if (left == 1'b0 && visited_block_data[position+pos_update_values[(nxt_direction+2'b01)&3'b011]][0] < 1'b1 ) begin
+                                        leftsider(pos_update_values[(nxt_direction+2'b01)&2'b11],visited_block_data[position][0],visited_block_data[position][2:1],position,nxt_direction, move);
+                                        
+                                    end
+                                    else  begin
+                                            var1=1;
+                                            visited_block_data[position][0] = 1'b1;
+                                        end												
+                                end
+                                endcase									
+								// if no movement is posible then move to the latest junction location
+                                if (var1==1)begin
+                                    for (var1 = 7; var1 > 0; var1 = var1 - 1) begin
+                                                if (junction_mem[var1] != 10'd0 && aim_pos_backTracking <1 )begin                                    
+                                                        aim_pos_backTracking = var1;
+                                                        junction_mem_pointer = aim_pos_backTracking +1;                                                                                                                                                                         
+                                                end
+                                                else move = 3'b00;
+                                    end
+                                    //If all blocked are visited atleast and if all junctions are vsited then point the bot to move to position 4
+                                            if (aim_pos_backTracking == 0 && reached_final == 1'b1)begin
+                                                aim_pos_backTracking =1;
+                                                junction_mem[aim_pos_backTracking] = 10'd4;
+                                            end
+                                                
+                                end
+                            //If bot is aimmed to point a junction location then go inside this else if
+                            end
+                        if(aim_pos_backTracking !=0 && can_exit_maze ==0 ) begin
+                                    next_position_inback_tracking = junction_mem[aim_pos_backTracking][7:0];                                 
+												
+                                    //Start traversing reverse from the pointed location to current position and stores the position that is just before current position of bot
+                                    for (var1 = 0; var1 <= 40; var1 = var1 + 1) begin
+                                        if(position != next_position_inback_tracking)begin
+                                        position_that_preceed_in_backTracking = next_position_inback_tracking;
+                                        next_position_inback_tracking = next_position_inback_tracking + pos_update_values[visited_block_data[next_position_inback_tracking][2:1]];                                													 
+                                        end
+                                    end
+                                    move = 3'b000;  
+                             
+                                //Starts moving backward until it reached the pointed junction 
+                                //This case statement help the bot decide  in which direction is the preceeding positon is loacted
+                                    next_position_inback_tracking = position - position_that_preceed_in_backTracking;
+                                    var1=nxt_direction;
+                                    case (next_position_inback_tracking)
+                                        -1:begin
+                                            nxt_direction = (nxt_direction + 2'd1)&2'b11;
+                                        end
+                                        1:begin
+                                            nxt_direction = (nxt_direction + 2'b11)&2'b11;
+                                        end
+                                        -9:begin
+                                            nxt_direction = (nxt_direction + 2'b10)&2'b11;
+                                        end
+                                        9:begin
+                                            nxt_direction = nxt_direction ;
+                                        end
+                                        default : move = 3'b000 ;
+                                    endcase
+                                    // Even though we know in which direction is the preceeded location is bot need to move based in in current orientation
+                                    //To move to particular positon , different orientation needs different move commands
+                                    //This case moves the bot according to its orientation
+                                    case (nxt_direction)
+                                        2'b00:begin
+                                            move = 3'b001;
+                                            nxt_direction = (var1)&2'b11;
+                                            visited_block_data[position][2:1]=nxt_direction;
+                                            position=position+pos_update_values[(var1)&2'b11];
+                                            
+                                        end
+                                        2'b01:begin
+                                            move = 3'b011;                        
+                                            nxt_direction = (var1 + 2'b11)&2'b11;
+                                            visited_block_data[position][2:1]=nxt_direction;
+                                            position=position+pos_update_values[(var1+2'b11)&2'b11];
+                                            
+                                        end
+                                        2'b10:begin
+                                            move = 3'b100;                        
+                                            nxt_direction = (var1 + 2'b10)&2'b11;
+                                            visited_block_data[position][2:1]=nxt_direction;
+                                            position=position+pos_update_values[(var1 + 2'b10)&2'b11];
+                                        end                     
+                                        2'b11:begin
+                                            move = 3'b010;                        
+                                            nxt_direction = (var1 + 2'b01)&2'b11;
+                                            visited_block_data[position][2:1]=nxt_direction;
+                                            position=position+pos_update_values[ (var1 + 2'b01)&2'b11];
+                                        end
+                                        default : move = 3'b000 ;
+                                    endcase
+                                    //If bot reached the posittion that is aimed then set  position aiming pointer as 0 
+                                    if (position == junction_mem[aim_pos_backTracking][7:0])begin
+                                        aim_pos_backTracking = 0;     
+                                                
+                                    end
+                                
+                        end
+                
+                    end      
+                 
+                    //If can_exit_maze flag is set the bot moves out of the maz
+                    if (can_exit_maze == 1 )begin
+                        
+                                        case (nxt_direction)
+                                        2'b00:move = 3'b001;
+                                        2'b01:move = 3'b011;
+                                        2'b11:move = 3'b010;
+                                        endcase
+                    end
+        end
+        delay_fo_rst = 2'b01;
+    end  
+		end
+	endcase
+	
+
+    //If rst_n is low then all parameters are initialised to initial values
+    if(rst_n == 0 )begin
+       for (var1 = 0; var1 <= 80; var1 = var1 + 1) begin
+       visited_block_data[var1] = 3'd0;
+   end
+   for (var1 = 1; var1 <= 7; var1 = var1 + 1) begin
+       junction_mem[var1] = 12'd0;
+   end
+   
+   pos_update_values[0]=-9;//north
+   pos_update_values[1]=-1;//west
+   pos_update_values[2]=9;//south
+   pos_update_values[3]=1;//east
+	position = 8'd76;
+   nxt_direction = 2'b00;
+	delay_fo_rst=2'b0;
+   delay_for_movement=1'b1;
+   var1=1;
+   junction_mem_pointer = 4'd1;
+   aim_pos_backTracking = 0;   
+	can_exit_maze = 0;
+   again_at_starting_position =1;
+	next_position_inback_tracking=7'd0;
+   reached_final = 0;
+   position_that_preceed_in_backTracking = 8'd0;    
+end
+end
+
+/////////////////DO NOT MAKE ANY CHANGES BELOW THIS LINE //////////////////
+
+endmodule

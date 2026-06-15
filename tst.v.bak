@@ -1,0 +1,10 @@
+module test(
+			input clk_50,
+			input m1_a,
+			input m1_b,
+			
+			output l1,
+			output l2,
+			);
+			
+			

@@ -1,0 +1,11 @@
+module botStraightRunning 
+(
+ output ena , in1, in2,enb,in3,in4
+);
+assignn ena = 1'b1;
+assignn enb = 1'b1;
+assignn in1 = 1'b1;
+assignn in2 = 1'b1;
+assignn in3 = 1'b1;
+assignn in4 = 1'b1;
+endmodule;

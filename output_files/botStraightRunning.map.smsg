@@ -1,0 +1,4 @@
+Warning (10268): Verilog HDL information at servo_runn.v(19): always construct contains both blocking and non-blocking assignments File: D:/task_6/task_4/servo_runn.v Line: 19
+Warning (10268): Verilog HDL information at mpimsend.v(81): always construct contains both blocking and non-blocking assignments File: D:/task_6/task_4/mpimsend.v Line: 81
+Warning (10268): Verilog HDL information at botrun.v(387): always construct contains both blocking and non-blocking assignments File: D:/task_6/task_4/botrun.v Line: 387
+Warning (10268): Verilog HDL information at ultrasonic.v(64): always construct contains both blocking and non-blocking assignments File: D:/task_6/task_4/ultrasonic.v Line: 64
